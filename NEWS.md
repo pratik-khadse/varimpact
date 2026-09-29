@@ -1,5 +1,33 @@
 # varimpact 1.3.0-9007 (development version)
 
+## New features
+
+* Cluster-robust standard errors. `varimpact()` gains an `id` argument for
+  data in which observations are correlated within groups (siblings in a
+  family, patients in a hospital, students in a school). `id` can name
+  columns of `data`, e.g. `id = "family"` or `id = c("school", "nbhd")`,
+  which are then used as clusters and not analyzed as predictors. It can
+  also be the ids themselves: a vector, or a list or data frame of vectors.
+  With an `id`:
+  * whole clusters are assigned to CV folds, so each validation fold is
+    independent of its training folds;
+  * SuperLearner's internal cross-validation for g, g.Delta and Q keeps
+    clusters together (and caps its folds at the number of clusters);
+  * influence-curve variances sum within clusters, with a G/(G - 1)
+    small-sample factor, and use Cameron, Gelbach & Miller (2011)
+    inclusion-exclusion for several clustering variables;
+  * confidence intervals and p-values use a t distribution with
+    (fewest clusters - 1) degrees of freedom.
+
+  A variable nested in another (family within site) is dropped with a
+  message, since clustering on the outer variable already covers it. An id
+  with one observation per cluster is ignored. Crossed variables that cannot
+  all be kept within single folds fall back to the coarsest variable with at
+  least `V` clusters; the new `folds_by` argument overrides this choice. A
+  supplied `id` that is `NULL` (e.g. a misspelled `data$column`) triggers a
+  warning. The ids in use and the degrees of freedom are returned as
+  `cluster_id` and `cluster_df`. Without `id`, results are unchanged.
+
 ## Bug fixes
 
 * The relative-risk p-values (`P-value RR`, `Adj. p-value RR` in

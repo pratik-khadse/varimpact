@@ -27,7 +27,9 @@ varimpact(
   verbose_reduction = FALSE,
   parallel = TRUE,
   digits = 4L,
-  adjustment_exclusions = list()
+  adjustment_exclusions = list(),
+  id = NULL,
+  folds_by = NULL
 )
 }
 \arguments{
@@ -109,6 +111,29 @@ mediator or collider out of a particular adjustment set. Naming a factor
 excludes all of its indicator columns, and a variable's missingness
 indicator is excluded along with the variable. Defaults to an empty list,
 which adjusts for every other variable as usual.}
+
+\item{id}{Optional cluster identifier(s) for cluster-robust standard
+errors, for data in which observations are correlated within groups
+(siblings in a family, patients in a hospital, students in a school).
+The simplest form is the name(s) of columns in \code{data}, e.g.
+\code{id = "family"}, or \code{id = c("school", "neighborhood")} for
+multiway clustering (Cameron, Gelbach & Miller 2011); those columns are
+used as clusters and are not analyzed as predictors. Alternatively pass
+the ids directly: a vector with one value per observation, or a list or
+data frame of such vectors. When given: every cluster is kept within a single CV
+fold; SuperLearner's internal cross-validation keeps clusters together;
+influence-curve variances sum within clusters; and confidence intervals
+and p-values use a t distribution with (fewest clusters - 1) degrees of
+freedom. A variable nested in another (family within site) is covered by
+clustering on the outer one and is dropped with a message. The
+asymptotics rely on the number of clusters, not observations, so results
+with few clusters (fewer than about 40) should be read with caution.
+NULL (the default) assumes independent observations.}
+
+\item{folds_by}{With several crossed cluster variables, the name of the
+column of \code{id} to form CV folds on. By default folds keep every
+cluster variable intact when that is possible, and otherwise fall back to
+the coarsest variable with at least \code{V} clusters.}
 }
 \value{
 Results object. TODO: add more detail here.

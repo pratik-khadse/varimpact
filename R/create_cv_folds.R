@@ -3,9 +3,15 @@
 #' @param V number of folds
 #' @param Y Outcome variable. If binary will be used for stratification.
 #' @param verbose If T will display extra output.
+#' @param id Optional grouping vector, one value per observation, from
+#'   cluster_fold_groups(). When given, every group is kept within a single
+#'   fold. NULL (the default) leaves fold assignment exactly as before.
 #'
 #' @return Vector of fold assignments.
-create_cv_folds = function(V, Y, verbose = F) {
+create_cv_folds = function(V, Y, verbose = F, id = NULL) {
+  if (!is.null(id)) {
+    return(assign_group_folds(id, V, Y, verbose = verbose))
+  }
   # Ignore missing outcomes when deciding whether Y is binary, so that a binary
   # outcome with some missingness is still stratified.
   Ys = unique(Y[!is.na(Y)])
@@ -71,4 +77,74 @@ assign_folds = function(n, V) {
   # Consumed and discarded, to keep the RNG stream where cvFolds() left it.
   sample.int(n)
   rep_len(seq_len(V), n)
+}
+
+#' Assign whole groups (clusters) to folds
+#'
+#' Groups are shuffled, then placed largest first into the fold that currently
+#' has the fewest observations, which keeps fold sizes close. For a binary
+#' outcome, groups containing events are placed first, each into the fold with
+#' the fewest events so far, so events are spread across folds as evenly as
+#' whole groups allow. Missing outcomes count as non-events here.
+#'
+#' @param id Grouping vector, one value per observation.
+#' @param V Number of folds.
+#' @param Y Outcome vector.
+#' @param verbose If TRUE, print the fold breakdown.
+#'
+#' @return Integer vector of length \code{length(Y)} with each observation's
+#'   fold.
+#' @noRd
+assign_group_folds = function(id, V, Y, verbose = FALSE) {
+  if (length(id) != length(Y)) {
+    stop("The cluster grouping has ", length(id), " values but Y has ",
+         length(Y), ".")
+  }
+  groups = unique(id)
+  G = length(groups)
+  if (G < V) {
+    stop("There are ", G, " clusters to form folds on, fewer than V = ", V,
+         ". Reduce V or cluster on a finer variable.")
+  }
+  
+  group_index = match(id, groups)
+  size = tabulate(group_index, nbins = G)
+  Ys = unique(Y[!is.na(Y)])
+  binary = length(Ys) == 2L
+  events = if (binary) {
+    tabulate(group_index[!is.na(Y) & Y == max(Ys)], nbins = G)
+  } else {
+    rep(0L, G)
+  }
+  
+  # Shuffle so that ties are broken at random, then order: groups with more
+  # events first, then larger groups first.
+  shuffled = sample.int(G)
+  ord = shuffled[order(-events[shuffled], -size[shuffled])]
+  
+  fold_n = rep(0L, V)
+  fold_events = rep(0L, V)
+  group_fold = integer(G)
+  for (g in ord) {
+    if (events[g] > 0L) {
+      candidates = which(fold_events == min(fold_events))
+    } else {
+      candidates = seq_len(V)
+    }
+    f = candidates[which.min(fold_n[candidates])]
+    group_fold[g] = f
+    fold_n[f] = fold_n[f] + size[g]
+    fold_events[f] = fold_events[f] + events[g]
+  }
+  
+  out = group_fold[group_index]
+  if (verbose) {
+    cat("Cluster-grouped cross-validation:", G, "clusters in", V, "folds.\n")
+    if (binary) {
+      print(table(Y, "Fold" = out, useNA = "ifany"))
+    } else {
+      print(table("Fold" = out))
+    }
+  }
+  out
 }
